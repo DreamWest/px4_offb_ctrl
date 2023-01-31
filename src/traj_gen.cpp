@@ -261,6 +261,19 @@ void cmdTimerCallback(const ros::TimerEvent& e)
     Eigen::Vector3d pos_d;
     tf::pointMsgToEigen(cmd_msg.position, pos_d);
     auto dp = end_pos - pos_d;
+
+    // if (dp.norm() < 2)
+    // {
+    //     tf::pointEigenToMsg(end_pos, cmd_msg.position);
+    //     cmd_msg.velocity.x = 0;
+    //     cmd_msg.velocity.y = 0;
+    //     cmd_msg.velocity.z = 0;
+
+    //     cmd_msg.acceleration.x = 0;
+    //     cmd_msg.acceleration.y = 0;
+    //     cmd_msg.acceleration.z = 0;   
+    // }
+
     double yaw = atan2(dp(1), dp(0));
     calcNextYaw(last_yaw, yaw);
     last_yaw = yaw;
