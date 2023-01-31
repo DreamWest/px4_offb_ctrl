@@ -41,16 +41,19 @@ if __name__ == "__main__":
                     time.sleep(2)
                     break
     else:
-        obs = env.reset()
-        env.gen_new_goal()
-        time.sleep(0.1)
-        for i in range(500):
-            a = env.policy(None)
-            obs_, r, done, info = env.step(a)
-            print("step-{} pos: ({:.3f}, {:.3f}, {:.3f})".format(i, obs_[1][0], obs_[1][1], obs_[1][2]))
-            obs = obs_
-            if "TimeLimit.truncated" in info:
-                break
+        for _ in range(2):
+            obs = env.reset()
+            env.gen_new_goal()
+            for i in range(500):
+                a = env.policy(None)
+                obs_, r, done, info = env.step(a)
+                print("step-{} pos: ({:.3f}, {:.3f}, {:.3f})".format(i, obs_[1][0], obs_[1][1], obs_[1][2]))
+                obs = obs_
+                if done:
+                    break
+                if "TimeLimit.truncated" in info:
+                    break
+            env.wait_until_finished()
 
     t1 = time.time()
 

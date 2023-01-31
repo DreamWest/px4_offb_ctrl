@@ -12,6 +12,7 @@ from geometry_msgs.msg import TwistStamped, PoseStamped
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import PointCloud2
 from quadrotor_msgs.msg import PositionCommand
+from std_msgs.msg import Int8
 import ros_numpy
 
 
@@ -66,6 +67,7 @@ class PX4OffbSingle(gym.Env):
                 break
             self.rate.sleep()
 
+        self.goal = None
         self._depth = None
         self._pos = None
         self._orient = None
@@ -131,7 +133,16 @@ class PX4OffbSingle(gym.Env):
         return self._depth, self._pos, self._orient, self._vel
 
     def _get_reward_and_done(self):
-        return np.random.randn(), bool(random.randint(0, 1))
+        if self.mode == 1:
+            return np.random.randn(), bool(random.randint(0, 1))
+        else:
+            done = False
+            reward = 0
+            if np.linalg.norm(self._pos - self.goal) < 0.4:
+                done = True
+                reward = 1
+            return reward, done
+        
 
     def _get_info(self):
         return {}
@@ -155,9 +166,19 @@ class PX4OffbSingle(gym.Env):
 
     def gen_new_goal(self):
         goal_msg = PoseStamped()
-        new_pos = (2 * np.random.rand(2) - 1) * 20
+        new_pos = (2 * np.random.rand(2) - 1) * 15
         goal_msg.pose.position.x = new_pos[0]
         goal_msg.pose.position.y = new_pos[1]
         goal_msg.pose.position.z = self.takeoff_height
 
         self._goal_pub.publish(goal_msg)
+        self.goal = ros_numpy.numpify(goal_msg.pose.position)
+
+    def wait_until_finished(self):
+        exec_state_msg = rospy.wait_for_message("/planning/exec_state", Int8, timeout=5)
+
+        while not rospy.is_shutdown():
+            exec_state_msg = rospy.wait_for_message("/planning/exec_state", Int8, timeout=5)
+            if exec_state_msg.data == 0 or exec_state_msg.data == 1:
+                break
+            self.rate.sleep()
