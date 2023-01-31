@@ -25,8 +25,8 @@
     <arg name="use_fastplanner" default="true"/>
     <arg name="Tf" default="0.3"/>
 
-    <arg name="max_vel" default="3.0" />
-    <arg name="max_acc" default="7.0" />
+    <arg name="max_vel" default="2.0" />
+    <arg name="max_acc" default="4.0" />
 
     <!-- vehicle configs -->
     <arg name="x" value="0"/>
@@ -86,6 +86,7 @@
         <param name="Tf" value="$(arg Tf)"/>
         <remap from="/odom" to="/mavros/local_position/odom" if="$(arg use_local_frame)"/>
         <remap from="/odom" to="/global_nwu_odom" unless="$(arg use_local_frame)"/> 
+        <remap from="/future_pva_cmd" to= "/future_pva_cmd2"/>
     </node>
 
     <node pkg="tf2_ros" type="static_transform_publisher" name="global2world" args="0.0 0.0 0.0 0.0 0.0 0.0 1.0 /world /global_nwu"/>

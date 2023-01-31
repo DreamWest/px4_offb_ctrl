@@ -8,7 +8,7 @@ import time
 import random
 from std_msgs.msg import String, Int8
 from px4_offb_ctrl.srv import setInitGlobalPose, setInitGlobalPoseRequest
-from geometry_msgs.msg import TwistStamped
+from geometry_msgs.msg import TwistStamped, PoseStamped
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import PointCloud2
 from quadrotor_msgs.msg import PositionCommand
@@ -38,6 +38,11 @@ class PX4OffbSingle(gym.Env):
             shell=True
             )
 
+        self.mode = None
+        if use_px4_ctrl and px4_ctrl_mode == "v":
+            self.mode = 1
+        else:
+            self.mode = 0
         is_ros_running = False
         while not is_ros_running:
             p = subprocess.run(["rosnode", "list"], capture_output=True)
@@ -67,8 +72,8 @@ class PX4OffbSingle(gym.Env):
         self._vel = None
         self._v_ref_pub = rospy.Publisher("/global_nwu_vel_ref", TwistStamped, queue_size=10)
         self._v_ref_msg = TwistStamped()
-        self._pva_ref_pub = rospy.Publisher("/planning/pos_cmd", PositionCommand, queue_size=10)
-        self._pva_cmd_msg = PositionCommand()
+        self._pva_cmd_pub = rospy.Publisher("/future_pva_cmd2", PositionCommand, queue_size=10)
+        self._goal_pub = rospy.Publisher("/move_base_simple/goal", PoseStamped, queue_size=10)
 
         rospy.loginfo("Env is ready!")
 
@@ -88,10 +93,6 @@ class PX4OffbSingle(gym.Env):
         req.pose.position.y = new_pos[1]
         req.pose.position.z = self.takeoff_height
 
-        # req.pose.position.x = -15
-        # req.pose.position.y = 0
-        # req.pose.position.z = self.takeoff_height
-
         while not rospy.is_shutdown():
             try:
                 res = self.reset_init_pose_client(req)
@@ -105,16 +106,20 @@ class PX4OffbSingle(gym.Env):
         return self._get_obs()
 
     def step(self, action):
-        self._v_ref_msg.header.stamp = rospy.Time.now()
-        self._v_ref_msg.twist.linear.x = action[0]
-        self._v_ref_msg.twist.linear.y = action[1]
-        self._v_ref_msg.twist.linear.z = action[2]
-        self._v_ref_pub.publish(self._v_ref_msg)
+        if self.mode == 1:
+            self._v_ref_msg.header.stamp = rospy.Time.now()
+            self._v_ref_msg.twist.linear.x = action[0]
+            self._v_ref_msg.twist.linear.y = action[1]
+            self._v_ref_msg.twist.linear.z = action[2]
+            self._v_ref_pub.publish(self._v_ref_msg)
+        elif self.mode == 0:
+            self._pva_cmd_pub.publish(action)
 
         return self._get_obs(), *self._get_reward_and_done(), self._get_info()
     
     def policy(self, obs):
-        raise NotImplementedError
+        future_pva_msg = rospy.wait_for_message("/future_pva_cmd", PositionCommand, timeout=5)
+        return future_pva_msg
     
     def _get_obs(self):
         depth_msg = rospy.wait_for_message("/pcl_render_node/cloud", PointCloud2, timeout=5)
@@ -147,3 +152,12 @@ class PX4OffbSingle(gym.Env):
 
     def close(self):
         self._kill()
+
+    def gen_new_goal(self):
+        goal_msg = PoseStamped()
+        new_pos = (2 * np.random.rand(2) - 1) * 20
+        goal_msg.pose.position.x = new_pos[0]
+        goal_msg.pose.position.y = new_pos[1]
+        goal_msg.pose.position.z = self.takeoff_height
+
+        self._goal_pub.publish(goal_msg)
